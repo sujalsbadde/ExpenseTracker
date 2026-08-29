@@ -6,6 +6,8 @@ const paymentMethodEnum = z.enum(['CASH', 'CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRA
   }),
 });
 
+const frequencyEnum = z.enum(['WEEKLY', 'MONTHLY', 'YEARLY']).optional();
+
 export const createExpenseSchema = z.object({
   body: z.object({
     amount: z
@@ -25,6 +27,8 @@ export const createExpenseSchema = z.object({
     categoryId: z
       .string({ required_error: 'Category ID is required' })
       .uuid('Category ID must be a valid UUID'),
+    isRecurring: z.boolean().optional().default(false),
+    recurrenceFrequency: frequencyEnum,
     receiptUrl: z.string().url('Receipt URL must be a valid URL').optional().nullable(),
     notes: z.string().max(1000, 'Notes cannot exceed 1000 characters').optional().nullable(),
   }),
@@ -50,6 +54,7 @@ export const updateExpenseSchema = z.object({
       date: z.string().datetime({ message: 'Date must be a valid ISO 8601 date string' }).optional(),
       paymentMethod: paymentMethodEnum.optional(),
       categoryId: z.string().uuid('Category ID must be a valid UUID').optional(),
+      isRecurring: z.boolean().optional(),
       receiptUrl: z.string().url('Receipt URL must be a valid URL').optional().nullable(),
       notes: z.string().max(1000, 'Notes cannot exceed 1000 characters').optional().nullable(),
     })
@@ -102,6 +107,10 @@ export const expenseQuerySchema = z.object({
         message: 'maxAmount must be a non-negative integer in cents',
       }),
     paymentMethod: paymentMethodEnum.optional(),
+    isRecurring: z
+      .string()
+      .optional()
+      .transform((val) => (val === 'true' ? true : val === 'false' ? false : undefined)),
     search: z.string().trim().optional(),
     sortBy: z.enum(['date', 'amount', 'createdAt']).optional().default('date'),
     sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),

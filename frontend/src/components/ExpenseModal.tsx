@@ -1,9 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { X, DollarSign } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, DollarSign, Sparkles } from 'lucide-react';
 import { ExpenseDTO, CategoryDTO, PaymentMethod } from '@expense-tracker/shared';
 import { toCents } from '../utils';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
+import { keywordMatcher } from '../utils/categorySuggester';
+
+// ─── Swappable suggester instance ──────────────────────────────────────────
+// To replace with ML: import { mlMatcher as categorySuggester } from '../utils/mlCategorySuggester';
+const categorySuggester = keywordMatcher;
+// ───────────────────────────────────────────────────────────────────────────
 
 interface ExpenseModalProps {
   isOpen: boolean;
@@ -36,6 +42,14 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
+  // Suggestion state: suggested categoryId and whether user has overridden it
+  const [suggestedCategoryId, setSuggestedCategoryId] = useState<string | null>(null);
+  const [suggestionLabel, setSuggestionLabel] = useState<string | null>(null);
+  const [userOverrode, setUserOverrode] = useState<boolean>(false);
+
+  // Debounce ref to avoid running matcher on every keystroke
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (expenseToEdit) {
       setDollars((expenseToEdit.amount / 100).toFixed(2));
@@ -53,7 +67,53 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       setNotes('');
     }
     setFormError(null);
+    setSuggestedCategoryId(null);
+    setSuggestionLabel(null);
+    setUserOverrode(false);
   }, [expenseToEdit, categories, isOpen]);
+
+  // Run keyword matcher 300ms after the user stops typing (only for new expenses)
+  const handleDescriptionChange = (value: string) => {
+    setDescription(value);
+
+    if (expenseToEdit) return; // Don't auto-suggest when editing an existing expense
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    debounceRef.current = setTimeout(() => {
+      const suggestion = categorySuggester.suggest(value);
+      if (suggestion && !userOverrode) {
+        // Find matching category from actual categories list (case-insensitive name match)
+        const matched = categories.find(
+          (c) => c.name.toLowerCase() === suggestion.categoryName.toLowerCase()
+        );
+        if (matched) {
+          setSuggestedCategoryId(matched.id);
+          setSuggestionLabel(matched.name);
+          setCategoryId(matched.id);
+        }
+      } else if (!suggestion) {
+        setSuggestedCategoryId(null);
+        setSuggestionLabel(null);
+      }
+    }, 300);
+  };
+
+  const handleCategoryChange = (newId: string) => {
+    setCategoryId(newId);
+    // User manually selected a different category — mark override so we stop auto-suggesting
+    if (newId !== suggestedCategoryId) {
+      setUserOverrode(true);
+      setSuggestedCategoryId(null);
+      setSuggestionLabel(null);
+    }
+  };
+
+  const dismissSuggestion = () => {
+    setUserOverrode(true);
+    setSuggestedCategoryId(null);
+    setSuggestionLabel(null);
+  };
 
   if (!isOpen) return null;
 
@@ -146,7 +206,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             <p className="mt-1 text-xs text-gray-400">Stored safely as integer cents in database.</p>
           </div>
 
-          {/* Description */}
+          {/* Description with debounced category suggestion */}
           <div>
             <label htmlFor="description" className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
               Description *
@@ -155,12 +215,35 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
               type="text"
               id="description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. Trader Joe's Groceries"
+              onChange={(e) => handleDescriptionChange(e.target.value)}
+              placeholder="e.g. Starbucks coffee, Uber home, Netflix"
               className="block w-full rounded-lg border border-gray-300 py-2 px-3 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               required
               disabled={isSubmitting}
             />
+
+            {/* Smart suggestion banner */}
+            {suggestionLabel && !userOverrode && (
+              <div
+                role="status"
+                aria-live="polite"
+                className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+              >
+                <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
+                <span>
+                  Suggested category:{' '}
+                  <span className="font-semibold">{suggestionLabel}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={dismissSuggestion}
+                  className="ml-auto text-emerald-600 hover:text-emerald-800 text-xs underline underline-offset-2 focus:outline-none"
+                  aria-label="Dismiss suggestion"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Category & Payment Method row */}
@@ -173,8 +256,12 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                 <select
                   id="category"
                   value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-300 py-2 px-3 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+                  onChange={(e) => handleCategoryChange(e.target.value)}
+                  className={`block w-full rounded-lg border py-2 px-3 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white ${
+                    suggestedCategoryId && categoryId === suggestedCategoryId
+                      ? 'border-emerald-400 ring-1 ring-emerald-400'
+                      : 'border-gray-300'
+                  }`}
                   required
                   disabled={isSubmitting}
                 >

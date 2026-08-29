@@ -1,4 +1,5 @@
 import { CategoryDTO } from './category';
+import { RecurrenceFrequency } from './recurrence';
 
 export type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'BANK_TRANSFER' | 'OTHER';
 
@@ -9,6 +10,8 @@ export interface ExpenseDTO {
   description: string;
   date: string;
   paymentMethod: PaymentMethod;
+  isRecurring: boolean;
+  recurringRuleId?: string | null;
   receiptUrl?: string | null;
   notes?: string | null;
   userId: string;
@@ -25,6 +28,8 @@ export interface CreateExpenseRequest {
   date?: string;
   paymentMethod?: PaymentMethod;
   categoryId: string;
+  isRecurring?: boolean;
+  recurrenceFrequency?: RecurrenceFrequency;
   receiptUrl?: string;
   notes?: string;
 }
@@ -35,6 +40,7 @@ export interface UpdateExpenseRequest {
   date?: string;
   paymentMethod?: PaymentMethod;
   categoryId?: string;
+  isRecurring?: boolean;
   receiptUrl?: string;
   notes?: string;
 }
@@ -48,6 +54,7 @@ export interface ExpenseFilters {
   minAmount?: number;
   maxAmount?: number;
   paymentMethod?: PaymentMethod;
+  isRecurring?: boolean;
   search?: string;
   sortBy?: 'date' | 'amount' | 'createdAt';
   sortOrder?: 'asc' | 'desc';

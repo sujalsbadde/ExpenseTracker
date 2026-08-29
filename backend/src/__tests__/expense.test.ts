@@ -47,6 +47,8 @@ jest.mock('../prisma', () => {
             description: data.description,
             date: data.date || new Date(),
             paymentMethod: data.paymentMethod || 'CREDIT_CARD',
+            isRecurring: data.isRecurring ?? false,
+            recurringRuleId: data.recurringRuleId || null,
             receiptUrl: data.receiptUrl || null,
             notes: data.notes || null,
             userId: data.userId,
@@ -98,6 +100,42 @@ jest.mock('../prisma', () => {
           return null;
         }),
       },
+      recurringRule: {
+        findMany: jest.fn(async () => []),
+        findFirst: jest.fn(async () => null),
+        create: jest.fn(async ({ data }: any) => ({ id: 'rule-uuid-1', ...data, createdAt: new Date(), updatedAt: new Date() })),
+        update: jest.fn(async ({ data }: any) => ({ id: 'rule-uuid-1', ...data })),
+        delete: jest.fn(async () => null),
+      },
+      $transaction: jest.fn(async (fn: any) =>
+        fn({
+          expense: {
+            create: jest.fn(async ({ data }: any) => {
+              const cat = categories.find((c: any) => c.id === data.categoryId);
+              const record = {
+                id: 'b0000000-0000-0000-0000-txn1',
+                isRecurring: data.isRecurring ?? false,
+                recurringRuleId: data.recurringRuleId || null,
+                ...data,
+                category: cat,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              };
+              expenses.push(record);
+              return record;
+            }),
+          },
+          recurringRule: {
+            create: jest.fn(async ({ data }: any) => ({
+              id: 'rule-uuid-1',
+              ...data,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            })),
+            update: jest.fn(async ({ data }: any) => ({ id: 'rule-uuid-1', ...data })),
+          },
+        })
+      ),
       _reset: () => {
         expenses.length = 0;
       },

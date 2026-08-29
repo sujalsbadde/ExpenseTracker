@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import prisma from '../prisma';
 import { AppError } from '../utils/response';
 import { CreateExpenseInput, UpdateExpenseInput, ExpenseQueryParams } from '../validation/expense.validation';
+import { RecurrenceService } from './recurrence.service';
 import {
   ExpenseDTO,
   PaginatedData,
@@ -21,6 +22,8 @@ export class ExpenseService {
       description: expense.description,
       date: expense.date.toISOString(),
       paymentMethod: expense.paymentMethod,
+      isRecurring: expense.isRecurring ?? false,
+      recurringRuleId: expense.recurringRuleId,
       receiptUrl: expense.receiptUrl,
       notes: expense.notes,
       userId: expense.userId,
@@ -58,12 +61,28 @@ export class ExpenseService {
       throw new AppError('Category not found or unauthorized', 404);
     }
 
+    const expenseDate = input.date ? new Date(input.date) : new Date();
+
+    if (input.isRecurring && input.recurrenceFrequency) {
+      const { initialExpense } = await RecurrenceService.createRule(userId, {
+        amount: input.amount,
+        description: input.description,
+        frequency: input.recurrenceFrequency,
+        startDate: expenseDate.toISOString(),
+        categoryId: input.categoryId,
+        paymentMethod: input.paymentMethod as any,
+        notes: input.notes || undefined,
+      });
+      return this.formatExpense(initialExpense);
+    }
+
     const expense = await prisma.expense.create({
       data: {
         amount: input.amount,
         description: input.description,
-        date: input.date ? new Date(input.date) : new Date(),
-        paymentMethod: input.paymentMethod as any,
+        date: expenseDate,
+        paymentMethod: (input.paymentMethod as any) || 'CREDIT_CARD',
+        isRecurring: false,
         receiptUrl: input.receiptUrl,
         notes: input.notes,
         userId,
@@ -84,6 +103,9 @@ export class ExpenseService {
     userId: string,
     params: ExpenseQueryParams
   ): Promise<PaginatedData<ExpenseDTO>> {
+    // Auto-materialize any due recurring expenses before querying
+    await RecurrenceService.processDueRecurringExpenses(userId);
+
     const page = params.page || 1;
     const limit = params.limit || 10;
     const skip = (page - 1) * limit;
@@ -91,6 +113,11 @@ export class ExpenseService {
     const where: Prisma.ExpenseWhereInput = {
       userId,
     };
+
+    // Recurring filter
+    if (params.isRecurring !== undefined) {
+      where.isRecurring = params.isRecurring;
+    }
 
     // Date range filter
     if (params.startDate || params.endDate) {

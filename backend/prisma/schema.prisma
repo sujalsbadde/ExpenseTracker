@@ -26,19 +26,26 @@ enum PaymentMethod {
   OTHER
 }
 
-model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
-  passwordHash  String
-  name          String
-  role          Role           @default(USER)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+enum RecurrenceFrequency {
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
 
-  expenses      Expense[]
-  categories    Category[]
-  budgets       Budget[]
-  refreshTokens RefreshToken[]
+model User {
+  id             String          @id @default(uuid())
+  email          String          @unique
+  passwordHash   String
+  name           String
+  role           Role            @default(USER)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  expenses       Expense[]
+  categories     Category[]
+  budgets        Budget[]
+  refreshTokens  RefreshToken[]
+  recurringRules RecurringRule[]
 
   @@map("users")
 }
@@ -52,75 +59,92 @@ model RefreshToken {
   revokedAt DateTime?
   createdAt DateTime  @default(now())
 
-  // Fast lookup for token verification by user
   @@index([userId])
   @@map("refresh_tokens")
 }
 
 model Category {
-  id          String    @id @default(uuid())
-  name        String
-  icon        String?   // Lucide icon identifier or emoji
-  color       String?   // Hex color code (e.g. #3B82F6) for UI/charts
-  isDefault   Boolean   @default(false) // System-wide preset vs user-created
-  userId      String?   // Nullable for system default categories
-  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id             String          @id @default(uuid())
+  name           String
+  icon           String?
+  color          String?
+  isDefault      Boolean         @default(false)
+  userId         String?
+  user           User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
-  expenses    Expense[]
-  budgets     Budget[]
+  expenses       Expense[]
+  budgets        Budget[]
+  recurringRules RecurringRule[]
 
-  // Fast category lookup by user and ensure unique category name per user
   @@unique([userId, name])
   @@index([userId])
   @@map("categories")
 }
 
-model Expense {
-  id            String        @id @default(uuid())
-  // Monetary amount stored in smallest currency unit (e.g., cents/paisa as integers)
-  // Example: $49.99 is stored as 4999.
-  // WHY INTEGERS INSTEAD OF FLOATS:
-  // Binary floating-point arithmetic (IEEE 754 standard) causes precision/rounding inaccuracies
-  // (e.g. 0.1 + 0.2 = 0.30000000000000004). Storing currency as integer cents eliminates rounding
-  // drift, ensures exact summation across financial aggregations, and avoids float calculation bugs.
-  amount        Int
-  description   String
-  date          DateTime      @default(now())
-  paymentMethod PaymentMethod @default(CREDIT_CARD)
-  receiptUrl    String?
-  notes         String?
-  
-  userId        String
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  categoryId    String
-  category      Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+model RecurringRule {
+  id                String              @id @default(uuid())
+  amount            Int                 // Stored in integer cents
+  description       String
+  frequency         RecurrenceFrequency @default(MONTHLY)
+  interval          Int                 @default(1) // Every N weeks/months/years
+  startDate         DateTime
+  endDate           DateTime?
+  nextDueDate       DateTime
+  lastGeneratedDate DateTime?
+  isActive          Boolean             @default(true)
+  paymentMethod     PaymentMethod       @default(CREDIT_CARD)
+  notes             String?
 
-  // ==========================================
-  // DATABASE INDEXES & PERFORMANCE RATIONALE
-  // ==========================================
-  // 1. @@index([userId]): Ensures fast foreign-key lookups and strict multi-tenant tenant isolation.
-  // 2. @@index([userId, date]): Compound B-Tree index optimized for fetching a user's expenses
-  //    within a date range (e.g. WHERE userId = ? AND date BETWEEN ? AND ?) and sorting by date
-  //    (ORDER BY date DESC) without requiring an expensive sequential scan or separate sort pass.
-  // 3. @@index([userId, categoryId]): Optimizes filtering by category (e.g., WHERE userId = ? AND categoryId = ?)
-  //    and accelerates category-level aggregation queries for spending dashboards and budget tracking.
-  // 4. @@index([userId, amount]): Speeds up range queries on spend amount (e.g., WHERE userId = ? AND amount BETWEEN ? AND ?).
+  userId            String
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  categoryId        String
+  category          Category            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  expenses          Expense[]
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([userId])
+  @@index([isActive, nextDueDate])
+  @@map("recurring_rules")
+}
+
+model Expense {
+  id              String         @id @default(uuid())
+  amount          Int            // Stored in integer cents
+  description     String
+  date            DateTime       @default(now())
+  paymentMethod   PaymentMethod  @default(CREDIT_CARD)
+  isRecurring     Boolean        @default(false)
+  receiptUrl      String?
+  notes           String?
+  
+  userId          String
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  categoryId      String
+  category        Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  recurringRuleId String?
+  recurringRule   RecurringRule? @relation(fields: [recurringRuleId], references: [id], onDelete: SetNull)
+  
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
   @@index([userId])
   @@index([userId, date])
   @@index([userId, categoryId])
   @@index([userId, amount])
+  @@index([recurringRuleId])
   @@map("expenses")
 }
 
 model Budget {
   id          String       @id @default(uuid())
-  // Budget amount stored in integer cents (e.g., $500.00 is stored as 50000)
   amount      Int
   period      BudgetPeriod @default(MONTHLY)
   startDate   DateTime
@@ -129,14 +153,12 @@ model Budget {
   userId      String
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  // Nullable categoryId allows setting an overall monthly spend limit or a per-category budget
   categoryId  String?
   category    Category?    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  // Ensures a user only has one budget per category (or total) per active time period
   @@unique([userId, categoryId, period, startDate])
   @@index([userId])
   @@map("budgets")
