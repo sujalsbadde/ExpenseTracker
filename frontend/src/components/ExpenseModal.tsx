@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, DollarSign, Calendar, Tag, CreditCard, FileText } from 'lucide-react';
+import { X, DollarSign } from 'lucide-react';
 import { ExpenseDTO, CategoryDTO, PaymentMethod } from '@expense-tracker/shared';
 import { toCents } from '../utils';
 import { LoadingSpinner } from './LoadingSpinner';

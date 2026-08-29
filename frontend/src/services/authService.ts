@@ -10,7 +10,7 @@ import {
 export const authService = {
   async register(data: RegisterRequest): Promise<AuthResponse> {
     const res = await api.post<ApiResponse<AuthResponse>>('/auth/register', data);
-    const { user, tokens } = res.data.data;
+    const { tokens } = res.data.data;
     localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
     localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
     return res.data.data;
@@ -18,7 +18,7 @@ export const authService = {
 
   async login(data: LoginRequest): Promise<AuthResponse> {
     const res = await api.post<ApiResponse<AuthResponse>>('/auth/login', data);
-    const { user, tokens } = res.data.data;
+    const { tokens } = res.data.data;
     localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
     localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
     return res.data.data;

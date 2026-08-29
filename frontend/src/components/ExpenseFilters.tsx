@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, RotateCcw, Calendar, DollarSign } from 'lucide-react';
+import { Search, Filter, RotateCcw } from 'lucide-react';
 import { CategoryDTO, ExpenseFilters as FilterType } from '@expense-tracker/shared';
 import { toCents } from '../utils';
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Wallet, Mail, Lock, User, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Wallet, Mail, Lock, User, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { LoadingSpinner } from '../components/LoadingSpinner';
