@@ -1,0 +1,143 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum BudgetPeriod {
+  MONTHLY
+  YEARLY
+  CUSTOM
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  DEBIT_CARD
+  BANK_TRANSFER
+  OTHER
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  passwordHash  String
+  name          String
+  role          Role           @default(USER)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  expenses      Expense[]
+  categories    Category[]
+  budgets       Budget[]
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  // Fast lookup for token verification by user
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String
+  icon        String?   // Lucide icon identifier or emoji
+  color       String?   // Hex color code (e.g. #3B82F6) for UI/charts
+  isDefault   Boolean   @default(false) // System-wide preset vs user-created
+  userId      String?   // Nullable for system default categories
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  expenses    Expense[]
+  budgets     Budget[]
+
+  // Fast category lookup by user and ensure unique category name per user
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("categories")
+}
+
+model Expense {
+  id            String        @id @default(uuid())
+  // Monetary amount stored in smallest currency unit (e.g., cents/paisa as integers)
+  // Example: $49.99 is stored as 4999.
+  // WHY INTEGERS INSTEAD OF FLOATS:
+  // Binary floating-point arithmetic (IEEE 754 standard) causes precision/rounding inaccuracies
+  // (e.g. 0.1 + 0.2 = 0.30000000000000004). Storing currency as integer cents eliminates rounding
+  // drift, ensures exact summation across financial aggregations, and avoids float calculation bugs.
+  amount        Int
+  description   String
+  date          DateTime      @default(now())
+  paymentMethod PaymentMethod @default(CREDIT_CARD)
+  receiptUrl    String?
+  notes         String?
+  
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  categoryId    String
+  category      Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // ==========================================
+  // DATABASE INDEXES & PERFORMANCE RATIONALE
+  // ==========================================
+  // 1. @@index([userId]): Ensures fast foreign-key lookups and strict multi-tenant tenant isolation.
+  // 2. @@index([userId, date]): Compound B-Tree index optimized for fetching a user's expenses
+  //    within a date range (e.g. WHERE userId = ? AND date BETWEEN ? AND ?) and sorting by date
+  //    (ORDER BY date DESC) without requiring an expensive sequential scan or separate sort pass.
+  // 3. @@index([userId, categoryId]): Optimizes filtering by category (e.g., WHERE userId = ? AND categoryId = ?)
+  //    and accelerates category-level aggregation queries for spending dashboards and budget tracking.
+  // 4. @@index([userId, amount]): Speeds up range queries on spend amount (e.g., WHERE userId = ? AND amount BETWEEN ? AND ?).
+  @@index([userId])
+  @@index([userId, date])
+  @@index([userId, categoryId])
+  @@index([userId, amount])
+  @@map("expenses")
+}
+
+model Budget {
+  id          String       @id @default(uuid())
+  // Budget amount stored in integer cents (e.g., $500.00 is stored as 50000)
+  amount      Int
+  period      BudgetPeriod @default(MONTHLY)
+  startDate   DateTime
+  endDate     DateTime
+  
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Nullable categoryId allows setting an overall monthly spend limit or a per-category budget
+  categoryId  String?
+  category    Category?    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Ensures a user only has one budget per category (or total) per active time period
+  @@unique([userId, categoryId, period, startDate])
+  @@index([userId])
+  @@map("budgets")
+}
