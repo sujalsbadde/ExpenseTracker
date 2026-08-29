@@ -65,7 +65,8 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const data = await categoryService.getCategories();
       setCategories(data);
     } catch (err: any) {
-      console.error('Failed to load categories', err);
+      const message = err.response?.data?.message || 'Failed to load expense categories';
+      setError(message);
     }
   }, []);
 
@@ -74,7 +75,8 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const data = await expenseService.getSummary(filters.startDate, filters.endDate);
       setSummary(data);
     } catch (err: any) {
-      console.error('Failed to load expense summary', err);
+      const message = err.response?.data?.message || 'Failed to load expense metrics summary';
+      setError(message);
     }
   }, [filters.startDate, filters.endDate]);
 
