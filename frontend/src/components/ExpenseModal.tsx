@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, DollarSign, Sparkles } from 'lucide-react';
-import { ExpenseDTO, CategoryDTO, PaymentMethod } from '@expense-tracker/shared';
+import { X, DollarSign, Sparkles, RefreshCw } from 'lucide-react';
+import { ExpenseDTO, CategoryDTO, PaymentMethod, RecurrenceFrequency } from '@expense-tracker/shared';
 import { toCents } from '../utils';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
@@ -21,6 +21,8 @@ interface ExpenseModalProps {
     paymentMethod: PaymentMethod;
     date: string;
     notes?: string;
+    isRecurring?: boolean;
+    recurrenceFrequency?: RecurrenceFrequency;
   }) => Promise<void>;
   expenseToEdit?: ExpenseDTO | null;
   categories: CategoryDTO[];
@@ -39,6 +41,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CREDIT_CARD');
   const [date, setDate] = useState<string>(new Date().toISOString().substring(0, 10));
   const [notes, setNotes] = useState<string>('');
+  const [isRecurring, setIsRecurring] = useState<boolean>(false);
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency>('MONTHLY');
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -58,6 +62,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       setPaymentMethod(expenseToEdit.paymentMethod || 'CREDIT_CARD');
       setDate(expenseToEdit.date.substring(0, 10));
       setNotes(expenseToEdit.notes || '');
+      setIsRecurring(expenseToEdit.isRecurring || false);
+      setRecurrenceFrequency('MONTHLY');
     } else {
       setDollars('');
       setDescription('');
@@ -65,6 +71,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       setPaymentMethod('CREDIT_CARD');
       setDate(new Date().toISOString().substring(0, 10));
       setNotes('');
+      setIsRecurring(false);
+      setRecurrenceFrequency('MONTHLY');
     }
     setFormError(null);
     setSuggestedCategoryId(null);
@@ -148,6 +156,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
         paymentMethod,
         date: new Date(date).toISOString(),
         notes: notes.trim() ? notes.trim() : undefined,
+        isRecurring,
+        recurrenceFrequency: isRecurring ? recurrenceFrequency : undefined,
       });
       onClose();
     } catch (err: any) {
@@ -310,6 +320,50 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
               disabled={isSubmitting}
             />
           </div>
+
+          {/* Recurring Expense Options (Only for new expenses) */}
+          {!expenseToEdit && (
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <RefreshCw className="w-4 h-4 text-emerald-600" />
+                  <label htmlFor="isRecurring" className="text-sm font-semibold text-gray-800 cursor-pointer">
+                    Repeat this expense
+                  </label>
+                </div>
+                <input
+                  type="checkbox"
+                  id="isRecurring"
+                  checked={isRecurring}
+                  onChange={(e) => setIsRecurring(e.target.checked)}
+                  className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 cursor-pointer"
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              {isRecurring && (
+                <div className="pt-2 border-t border-gray-200 animate-in fade-in duration-150">
+                  <label htmlFor="recurrenceFrequency" className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
+                    Frequency
+                  </label>
+                  <select
+                    id="recurrenceFrequency"
+                    value={recurrenceFrequency}
+                    onChange={(e) => setRecurrenceFrequency(e.target.value as RecurrenceFrequency)}
+                    className="block w-full rounded-lg border border-gray-300 py-2 px-3 text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-sm"
+                    disabled={isSubmitting}
+                  >
+                    <option value="WEEKLY">Weekly (every 7 days)</option>
+                    <option value="MONTHLY">Monthly (same day of month, handles 31st safely)</option>
+                    <option value="YEARLY">Yearly (same day & month, leap year safe)</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Subsequent occurrences will be automatically tracked according to calendar rules.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Notes */}
           <div>

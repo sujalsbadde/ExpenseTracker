@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit2, Trash2, ChevronLeft, ChevronRight, Inbox, CreditCard, Tag, Calendar } from 'lucide-react';
+import { Edit2, Trash2, ChevronLeft, ChevronRight, Inbox, CreditCard, Tag, Calendar, RefreshCw } from 'lucide-react';
 import { ExpenseDTO, PaginatedData } from '@expense-tracker/shared';
 import { formatCurrency } from '../utils';
 import { LoadingSpinner } from './LoadingSpinner';
@@ -78,7 +78,18 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
               <tr key={exp.id} className="hover:bg-gray-50/80 transition-colors">
                 {/* Description & Notes */}
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-semibold text-gray-900">{exp.description}</div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-semibold text-gray-900">{exp.description}</span>
+                    {exp.isRecurring && (
+                      <span
+                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800"
+                        title="Recurring series entry"
+                      >
+                        <RefreshCw className="w-2.5 h-2.5 mr-1 animate-spin-reverse" />
+                        Recurring
+                      </span>
+                    )}
+                  </div>
                   {exp.notes && <div className="text-xs text-gray-500 truncate max-w-xs">{exp.notes}</div>}
                 </td>
 
@@ -148,7 +159,15 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
           <div key={exp.id} className="p-4 space-y-2">
             <div className="flex items-start justify-between">
               <div>
-                <h4 className="font-semibold text-gray-900 text-sm">{exp.description}</h4>
+                <div className="flex items-center space-x-2">
+                  <h4 className="font-semibold text-gray-900 text-sm">{exp.description}</h4>
+                  {exp.isRecurring && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                      <RefreshCw className="w-2.5 h-2.5 mr-0.5" />
+                      Recurring
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center text-xs text-gray-500 mt-0.5 space-x-2">
                   <span className="flex items-center">
                     <Calendar className="w-3 h-3 mr-1" />

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Plus, TrendingUp, DollarSign, Calendar, AlertCircle } from 'lucide-react';
+import { Plus, TrendingUp, DollarSign, Calendar, AlertCircle, RefreshCw } from 'lucide-react';
 import { ExpenseDTO, CreateExpenseRequest, UpdateExpenseRequest } from '@expense-tracker/shared';
 import { useExpenses } from '../context/ExpenseContext';
 import { Layout } from '../components/Layout';
 import { ExpenseList } from '../components/ExpenseList';
 import { ExpenseFilters } from '../components/ExpenseFilters';
 import { ExpenseModal } from '../components/ExpenseModal';
+import { RecurringRulesModal } from '../components/RecurringRulesModal';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { formatCurrency } from '../utils';
 
@@ -28,6 +29,7 @@ export const ExpensesPage: React.FC = () => {
   } = useExpenses();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
   const [expenseToEdit, setExpenseToEdit] = useState<ExpenseDTO | null>(null);
   const [expenseToDelete, setExpenseToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -73,13 +75,24 @@ export const ExpensesPage: React.FC = () => {
             </p>
           </div>
 
-          <button
-            onClick={handleOpenAddModal}
-            className="inline-flex items-center justify-center px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-sm shadow-emerald-200 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            <span>Add Expense</span>
-          </button>
+          <div className="flex items-center space-x-3">
+            <button
+              type="button"
+              onClick={() => setIsRecurringModalOpen(true)}
+              className="inline-flex items-center justify-center px-3.5 py-2.5 bg-white hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-xl border border-gray-300 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+            >
+              <RefreshCw className="w-4 h-4 mr-2 text-emerald-600" />
+              <span>Recurring Series</span>
+            </button>
+
+            <button
+              onClick={handleOpenAddModal}
+              className="inline-flex items-center justify-center px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-sm shadow-emerald-200 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              <span>Add Expense</span>
+            </button>
+          </div>
         </div>
 
         {/* Global Error Banner if any */}
@@ -149,6 +162,17 @@ export const ExpensesPage: React.FC = () => {
           onSubmit={handleModalSubmit}
           expenseToEdit={expenseToEdit}
           categories={categories}
+        />
+
+        {/* Manage Recurring Rules Modal */}
+        <RecurringRulesModal
+          isOpen={isRecurringModalOpen}
+          onClose={() => setIsRecurringModalOpen(false)}
+          categories={categories}
+          onRulesChanged={() => {
+            // Re-fetch current expenses in case rules were triggered or stopped
+            setPage(pagination.page);
+          }}
         />
 
         {/* Delete Confirmation Dialog */}
